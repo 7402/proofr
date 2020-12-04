@@ -486,6 +486,7 @@ void Fl_Main_Window::adjustSplitHeight()
     int current_nrows = grids.size() > 0 ? grids[0].nrows : 0;
     double current_row_height = grids.size() > 0 ? grids[0].row_height_rel * pageImageHeight : 0.0;
     double y_input = box2->y();
+    int input_text_inset = current_page % 2 == 0 ? input_text_inset_even : input_text_inset_odd;
     while (current_grid < grids.size() && current_input < inputs->size()) {
         y_input += current_row_height;
         inputs->at(current_input)->resize(
@@ -646,7 +647,12 @@ void Fl_Main_Window::font_smaller()
 void Fl_Main_Window::input_narrower()
 {
 //    cout << "input_narrower" << endl;
-    input_text_inset += 2;
+    if (current_page % 2 == 0) {
+        input_text_inset_even += 2;
+
+    } else {
+        input_text_inset_odd += 2;
+    }
     adjustSplitHeight();
     redraw();
 }
@@ -654,7 +660,12 @@ void Fl_Main_Window::input_narrower()
 void Fl_Main_Window::input_wider()
 {
 //    cout << "input_wider" << endl;
-    input_text_inset -= 2;
+    if (current_page % 2 == 0) {
+        input_text_inset_even -= 2;
+
+    } else {
+        input_text_inset_odd -= 2;
+    }
     if (input_text_size < 0) input_text_size = 0;
 
     adjustSplitHeight();
@@ -842,9 +853,9 @@ void append_space_or_newline_to_line(Grid::GridType grid_type, bool use_line_bre
 
 void Fl_Main_Window::export_text(bool to_html)
 {
-    bool show_page_index = false;
+    bool show_page_index = true;
     bool show_page_number = false;
-    bool footnotes_after_paragraph = false;
+    bool footnotes_after_paragraph = true;
     bool use_line_breaks = true;
     int min_line_length = 60;
 
@@ -1055,12 +1066,12 @@ void Fl_Main_Window::export_text(bool to_html)
 
                             line.clear();
                             skipping_spaces = true;
+                        }
 
-                            if (++row_in_grid >= grid.nrows) {
-                                if (++grid_index < next_grids.size()) {
-                                    row_in_grid = 0;
-                                    grid = next_grids.at(grid_index);
-                                }
+                        if (++row_in_grid >= grid.nrows) {
+                            if (++grid_index < next_grids.size()) {
+                                row_in_grid = 0;
+                                grid = next_grids.at(grid_index);
                             }
                         }
 

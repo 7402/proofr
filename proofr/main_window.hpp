@@ -114,7 +114,8 @@ protected:
     Fl_Image *pageImage = nullptr;
 
     Fl_Fontsize input_text_size = 18;
-    int input_text_inset = 20;
+    int input_text_inset_odd = 20;
+    int input_text_inset_even = 20;
 
     Fl_My_Sys_Menu_Bar *menu_bar = nullptr;
     Fl_Round_Button *merged_button = nullptr;
