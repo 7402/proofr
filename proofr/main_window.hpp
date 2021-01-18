@@ -73,6 +73,7 @@ public:
     virtual void insert_section_break();
     virtual void insert_paragraph_break();
     virtual void insert_line_break();
+    virtual void insert_page_ref_toggle();
     virtual void save_page();
     virtual void page_input_changed();
     virtual void edited_page();
@@ -139,6 +140,7 @@ protected:
     Fl_Button *insert_section_break_button = nullptr;
     Fl_Button *insert_paragraph_break_button = nullptr;
     Fl_Button *insert_line_break_button = nullptr;
+    Fl_Button *insert_page_ref_button = nullptr;
     Fl_Button *save_page_button = nullptr;
     Fl_Scroll *scroll = nullptr;
     Fl_Group *merged_buttons = nullptr;
@@ -150,5 +152,6 @@ protected:
     Fl_Split_Box *box2 = nullptr;
 };
 
+void reformat_cleaned();
 
 #endif /* main_window_hpp */

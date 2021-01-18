@@ -6,30 +6,46 @@
 //  Copyright © 2020 Michael Budiansky. All rights reserved.
 //
 
-//    https://www.fltk.org/software.php
-//
-//    cd ~/Downloads/fltk-1.3.5
-//    ./configure --enable-localzlib
-//    make
-//    test/demo
-//    sudo make install
-
+//    Requirements:
+//    CMake https://cmake.org/download/
+//    libpng http://www.libpng.org/pub/png/libpng.html
 //    GraphicsMagick http://www.graphicsmagick.org https://sourceforge.net/projects/graphicsmagick/files/
 //    JasPer for JPEG-2000    https://www.ece.uvic.ca/~frodo/jasper/#download
-//
+//    FLTK https://www.fltk.org/software.php
+
+//    cd ~/Downloads/cmake-3.19.3
+//    ./bootstrap
+//    make
+//    sudo make install
+
+//    cd /Users/michael/Downloads/libpng-1.6.37
+//    ./configure
+//    make check
+//    sudo make install
+
 //    cd ~/Downloads
 //    mkdir build
 //    cmake -G "Unix Makefiles" -H~/Downloads/jasper-2.0.14 -B~/Downloads/build \
 //      -DGLUT_glut_LIBRARY=/System/Library/Frameworks/GLUT.framework
 //    cd build
-//    make clean all
 //    make test
 //    sudo make install
-//
+
+//    on Mac Mini M1 Big Sur, Jasper; observe & ignore:
+//    The following tests FAILED:
+//          1 - run_test_1 (Failed)
+//          2 - run_test_2 (Failed)
+
 //    cd ~/Downloads/GraphicsMagick-1.3.35
 //    make clean
 //    ./configure
 //    make
+//    sudo make install
+
+//    cd ~/Downloads/fltk-1.3.5
+//    ./configure --enable-localzlib
+//    make
+//    test/demo
 //    sudo make install
 
 //
@@ -44,7 +60,17 @@
 //      Cocoa.framework
 //      libfltk.a    [/usr/local/lib/libftlk.a]
 
+//    double-clickable executable requires Release build
+
+//    Targets > Build Settings: Architectures
+//      Build Active Architecture Only > Release: Yes (instead of No)
+
+//    Project settings > Project-relative Location;
+//      Advanced: Custom > Relative to workspace
+
+
 #include <iostream>
+#include <locale.h>
 
 #include <FL/Fl.H>
 #include <FL/Fl_Sys_Menu_Bar.H>
@@ -55,12 +81,22 @@
 using namespace std;
 
 void close_cb(Fl_Widget *widget, void *userp);
-
 int systemHandler(void *event, void *data);
 
 int main(int argc, const char * argv[]) {
+
+    cout << "proofr" << endl;
+
+#if 0
+    // one-time hack to change format
+    reformat_cleaned();
+    exit(0);
+#endif
+
     // initial lock of main thread https://www.fltk.org/doc-1.3/advanced.html
     Fl::lock();
+
+    setlocale(LC_ALL, "en_US.UTF-8");
 
     open_grids_db();
 
@@ -91,4 +127,3 @@ void close_cb(Fl_Widget *widget, void *userp)
         (window->callback())(window, nullptr);
     }
 }
-

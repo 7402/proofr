@@ -12,11 +12,21 @@
 
 #include <iostream>
 #include <sstream>
-//#include <stdexcept>
-//#include <unistd.h>
-//#include <vector>
 
 using namespace std;
+
+// trim leading and trailing spaces from string
+std::string trim(std::string& str)
+{
+    size_t start_index = 0;
+    size_t end_index = str.length();
+
+    while (start_index < end_index && str[start_index] == ' ') start_index++;
+
+    while (start_index < end_index && str[end_index - 1] == ' ') end_index--;
+
+    return str.substr(start_index, end_index - start_index);
+}
 
 // can file be read
 bool fileExists(const std::string& path)

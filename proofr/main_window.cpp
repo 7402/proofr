@@ -54,6 +54,7 @@ void insert_emdash_button_cb(Fl_Widget* widget, void *userp);
 void insert_section_break_button_cb(Fl_Widget* widget, void *userp);
 void insert_paragraph_break_button_cb(Fl_Widget* widget, void *userp);
 void insert_line_break_button_cb(Fl_Widget* widget, void *userp);
+void insert_page_ref_button_cb(Fl_Widget* widget, void *userp);
 void save_page_button_cb(Fl_Widget* widget, void *userp);
 
 void resizingTimer(void *data);
@@ -89,8 +90,8 @@ Fl_Main_Window::Fl_Main_Window(int x, int y, int width, int height, const char *
 Fl_Double_Window(x, y, width, height, title)
 {
     menu_bar = new Fl_My_Sys_Menu_Bar(0, 0, 0, 0);
-    menu_bar->add("File/Export Text...",  0, export_text_cb, this);
-    menu_bar->add("File/Export HTML...",  0, export_html_cb, this);
+    menu_bar->add("File/Export Text",  0, export_text_cb, this);
+    menu_bar->add("File/Export HTML",  0, export_html_cb, this);
     menu_bar->add("Edit/Undo",  FL_COMMAND + 'z', undo_cb, this, FL_MENU_DIVIDER);
     menu_bar->add("Edit/Cut",  FL_COMMAND + 'x', cut_cb, this);
     menu_bar->add("Edit/Copy",  FL_COMMAND + 'c', copy_cb, this);
@@ -173,6 +174,9 @@ Fl_Double_Window(x, y, width, height, title)
 
     insert_section_break_button = new Fl_Button(0, 0, 0, 0, "§");
     insert_section_break_button->callback(insert_section_break_button_cb, this);
+
+    insert_page_ref_button = new Fl_Button(0, 0, 0, 0, "№");
+    insert_page_ref_button->callback(insert_page_ref_button_cb, this);
 
     save_page_button = new Fl_Button(0, 0, 0, 0, "Save");
     save_page_button->callback(save_page_button_cb, this);
@@ -259,7 +263,9 @@ void Fl_Main_Window::load_page(int pageNumber)
     if (fileExists(src_image_path) &&
             (fileExists(dest_text_file_path) || fileExists(src_text_file_path))) {
 
-        if (!fileToString(dest_text_file_path, pageText)) fileToString(src_text_file_path, pageText);
+        bool reading_cleaned = fileToString(dest_text_file_path, pageText);
+
+        if (!reading_cleaned) fileToString(src_text_file_path, pageText);
 
         entering_page(pageNumber);
 
@@ -312,6 +318,10 @@ void Fl_Main_Window::load_page(int pageNumber)
                 }
                 skipping_spaces = false;
 
+                if (reading_cleaned) {
+                    line.append((char *)&c, 1);
+                } else
+
                 if (c == 0xAC) {            // Latin-1 not ¬
                     line.append("¬");
 
@@ -321,8 +331,8 @@ void Fl_Main_Window::load_page(int pageNumber)
                 } else  if (c == 0xA7) {    // latin-1 section sign §
                     line.append("§");
 
-                } else  if (c == 0xA6) {    // latin-1 broken bar ¦ (placeholder for em dash)
-                    line.append("—");       // em dash
+                } else  if (c == 0xA6) {    // latin-1 emdash —
+                    line.append("—");       // emdash
 
                 } else  if ((c & 0x80) != 0) {    // high-ascii
                     cout << "load_page unknown high ASCII 0x" << hex << setw(2) << uppercase << setfill('0') <<
@@ -421,9 +431,11 @@ void Fl_Main_Window::position_widgets(bool adjustImage)
         insert_paragraph_break_button->x() + insert_paragraph_break_button->w() + 10, MARGIN, 30, 20);
     insert_section_break_button->resize(
         insert_line_break_button->x() + insert_line_break_button->w() + 10, MARGIN, 30, 20);
+    insert_page_ref_button->resize(
+        insert_section_break_button->x() + insert_section_break_button->w() + 10, MARGIN, 30, 20);
 
     save_page_button->resize(
-        insert_section_break_button->x() + insert_section_break_button->w() + 30, MARGIN, 80, 20);
+        insert_page_ref_button->x() + insert_page_ref_button->w() + 30, MARGIN, 80, 20);
 
     scroll->resize(MARGIN, 2 * MARGIN + 20, width - 2 * MARGIN, height - 20 - 3 * MARGIN);
 
@@ -714,6 +726,19 @@ void Fl_Main_Window::insert_line_break()
     }
 }
 
+void Fl_Main_Window::insert_page_ref_toggle()
+{
+    Fl_Widget *widget = Fl::focus();
+    bool found = false;
+    for (size_t k = 0; k < inputs->size() && !found; k++) {
+        found = widget == inputs->at(k);
+    }
+
+    if (found) {
+        ((Fl_Input *)widget)->insert("№");
+    }
+}
+
 void Fl_Main_Window::insert_paragraph_break()
 {
     //    cout << "insert_paragraph_break" << endl;
@@ -752,44 +777,8 @@ void Fl_Main_Window::save_page()
 
         for (size_t i = 0; i < line.length(); i++) {
             unsigned char c = line.at(i);
-            if (c == 0xC2) {
-                if (++i < line.length()) {
-                    c = line.at(i);
-                    switch (c) {
-                        case 0xAC:      stext << '\xAC';    break;  // not
-                        case 0xB6:      stext << '\xB6';    break;  // pilcrow
-                        case 0xA7:      stext << '\xA7';    break;  // section sign
-                        default:
-                            cout << "save_page 1 unknown high ascii " << hex << setw(2) << uppercase << setfill('0') <<
-                            (unsigned int)(unsigned char)c << endl;
-                    }
-                }
+            stext << c;
 
-            } else if (c == 0xE2) {
-                if (++i < line.length()) {
-                    c = line.at(i);
-                    if (c == 0x80 && ++i < line.length()) {
-                        c = line.at(i);
-                        if (c == 0x94) {
-                            stext << '\xA6';    // broken bar, placeholder for emdash
-                        } else {
-                            cout << "save_page 2 unknown high ascii " << hex << setw(2) << uppercase << setfill('0') <<
-                            (unsigned int)(unsigned char)c << endl;
-                        }
-
-                    } else {
-                        cout << "save_page 3 unknown high ascii " << hex << setw(2) << uppercase << setfill('0') <<
-                        (unsigned int)(unsigned char)c << endl;
-                    }
-                }
-
-            } else {
-                if ((c & 0x80) != 0) {
-                    cout << "save_page 4 unknown high ascii " << hex << setw(2) << uppercase << setfill('0') <<
-                        (unsigned int)(unsigned char)c << endl;
-                }
-                stext << c;
-            }
         }
 
         stext << '\x0B';
@@ -851,13 +840,21 @@ void append_space_or_newline_to_line(Grid::GridType grid_type, bool use_line_bre
     }
 }
 
+#define FIX_BREAK
+
+#ifdef FIX_BREAK
+#else
+#endif
+
 void Fl_Main_Window::export_text(bool to_html)
 {
-    bool show_page_index = true;
-    bool show_page_number = false;
-    bool footnotes_after_paragraph = true;
+    bool show_page_index = false;
+    bool show_page_number = true;
+    bool footnotes_after_paragraph = false;
     bool use_line_breaks = true;
     int min_line_length = 60;
+    bool page_refs_on = false;
+    string page_ref = "";
 
     ostringstream oss_text;
     ostringstream oss_fn;
@@ -958,6 +955,7 @@ void Fl_Main_Window::export_text(bool to_html)
     }
 
     bool previous_whitespace_char = true;
+    bool previous_digit_char = false;
     bool within_tag = false;
     bool first_paragraph = true;
     int non_tag_line_length_text = 0;
@@ -968,6 +966,7 @@ void Fl_Main_Window::export_text(bool to_html)
     for (int n = 0; n < LAST_PAGE; n++) {
         string next_cleaned_path;
         bool next_cleaned_path_exists = cleaned_text_path(n, next_cleaned_path);
+        bool dump_footnotes = false;
 
         if (next_cleaned_path_exists) {
             string next_page_text;
@@ -985,6 +984,11 @@ void Fl_Main_Window::export_text(bool to_html)
                 string line;
                 for (size_t k = 0; k < next_page_text.length() && grid_index < next_grids.size(); k++) {
                     unsigned char c = next_page_text[k];
+#ifdef FIX_BREAK
+                    bool is_whitespace_char = c == ' ' || c == '\x0b';
+#endif
+                    bool ending_tag = false;
+
                     if (c == '\x0b') {
                         if (line.length() > 0) {
                             // finished line
@@ -995,13 +999,40 @@ void Fl_Main_Window::export_text(bool to_html)
                                 default:                breaking_word = false;                  break;
                             }
 
+#ifdef FIX_BREAK
+                            if (breaking_word) is_whitespace_char = false;
+#endif
+
                             if (!breaking_word && line.length() > 0) {
+
+                                if (!within_tag && page_refs_on && to_html && previous_digit_char) {
+                                    // end page link
+                                    line.append("\">");
+                                    line.append(page_ref);
+                                    line.append("</a>");
+                                    page_ref.clear();
+                                }
+
+                                if (!within_tag) previous_digit_char = false;
 
                                 append_space_or_newline_to_line(grid.grid_type, use_line_breaks,
                                                                 within_tag, non_tag_line_length_text,
                                                                 non_tag_line_length_footnote, min_line_length, line);
 
+#ifdef FIX_BREAK
+#else
                                 previous_whitespace_char = true;
+#endif
+
+                                if (!within_tag && page_refs_on && to_html && previous_digit_char) {
+                                    // end page link
+                                    line.append("\">");
+                                    line.append(page_ref);
+                                    line.append("</a>");
+                                    page_ref.clear();
+                                }
+
+                                previous_digit_char = false;
                             }
 
                             switch (grid.grid_type) {
@@ -1015,8 +1046,9 @@ void Fl_Main_Window::export_text(bool to_html)
                                         }
 
                                     } else if (show_page_number) {
+                                        line = trim(line);
                                         if (to_html) {
-                                            oss_text << "<span class=\"npage\">" << line << "</span>";
+                                            oss_text << "<span class=\"npage\" id=\"p" << line << "\">" << line << "</span>";
 
                                         } else {
                                             oss_text << endl << "{" << line << "}" << endl;
@@ -1084,73 +1116,165 @@ void Fl_Main_Window::export_text(bool to_html)
                                                             within_tag, non_tag_line_length_text,
                                                             non_tag_line_length_footnote, min_line_length, line);
 
+#ifdef FIX_BREAK
+#else
                             previous_whitespace_char = true;
-                        }
+#endif
+                       }
 
                         skipping_spaces = false;
 
                         switch (c) {
-                            case 0xAC:      // Latin-1 not ¬
-                                if (grid.grid_type == Grid::TEXT) {
-                                    breaking_word_text = true;
+                            case 0xC2:
+                                if (++k < next_page_text.length() && grid_index < next_grids.size()) {
+                                    unsigned char c2 = next_page_text[k];
+                                    switch (c2) {
+                                        case 0xAC:      // Latin-1 not ¬
+                                            if (grid.grid_type == Grid::TEXT) {
+                                                breaking_word_text = true;
 
-                                } else if (grid.grid_type == Grid::FOOTNOTE) {
-                                    breaking_word_footnote = true;
+                                            } else if (grid.grid_type == Grid::FOOTNOTE) {
+                                                breaking_word_footnote = true;
+                                            }
+                                            break;
+
+                                        case 0xB6:      // latin-1 pilcrow ¶
+                                            k++;
+                                            skipping_spaces = true;
+
+                                            if (to_html) oss_text << (first_paragraph ? "<p>" : "</p>\n\n<p>");
+                                            first_paragraph = false;
+
+                                            if (footnotes_after_paragraph && oss_fn.str().length() > 0) {
+                                                oss_text << oss_fn.str();
+                                                oss_fn.str("");
+                                                if (to_html) oss_text << (first_paragraph ? "<p>" : "</p>\n\n<p>");
+
+                                            } else {
+                                                if (!to_html) oss_text << endl;
+                                            }
+
+                                            if (!to_html) oss_text << endl;
+                                            non_tag_line_length_text = 0;
+                                            break;
+
+                                        case 0xA7:      // Latin-1 section sign §
+                                            dump_footnotes = true;
+//                                            if (oss_fn.str().length() > 0) {
+//                                                oss_text << line;
+//                                                line.clear();
+//                                                skipping_spaces = true;
+//
+//                                                oss_text << endl << oss_fn.str() << endl;
+//                                                non_tag_line_length_text = 0;
+//                                                oss_fn.str("");
+//                                            }
+                                            break;
+
+                                        default:
+                                            line.append((char *)&c, 1);
+                                            line.append((char *)&c2, 1);
+
+                                            if (!within_tag) {
+                                                if (grid.grid_type == Grid::TEXT) {
+                                                    non_tag_line_length_text++;
+
+                                                } else if (grid.grid_type == Grid::FOOTNOTE) {
+                                                    non_tag_line_length_footnote++;
+                                                }
+                                            }
+                                            break;
+                                   }
+
+                                } else {
+                                    cout << "bad UTF-8 on page index " << n << endl;
                                 }
                                 break;
 
-                            case 0xB6:      // latin-1 pilcrow ¶
-                                k++;
-                                skipping_spaces = true;
+                            case 0xE2:
+                                if (k + 2 < next_page_text.length() && grid_index < next_grids.size()) {
+                                    unsigned char c2 = next_page_text[k + 1];
+                                    unsigned char c3 = next_page_text[k + 2];
+                                    k += 2;
 
-                                if (to_html) oss_text << (first_paragraph ? "<p>" : "</p>\n\n<p>");
-                                first_paragraph = false;
+                                    if (c2 == 0x80 && c3 == 0x94) {
+                                        // line.append("--");
+                                        line.append(to_html ? "&mdash;" : u8"—");
+//                                      line.append(to_html ? "&mdash;" : "\xE2\x80\x94");
+                                        if (grid.grid_type == Grid::TEXT) {
+                                            if (!within_tag) non_tag_line_length_text++;
 
-                                if (footnotes_after_paragraph && oss_fn.str().length() > 0) {
-                                    oss_text << oss_fn.str();
-                                    oss_fn.str("");
-                                    if (to_html) oss_text << (first_paragraph ? "<p>" : "</p>\n\n<p>");
+                                        } else if (grid.grid_type == Grid::FOOTNOTE) {
+                                            if (!within_tag) non_tag_line_length_footnote++;
+                                        }
+
+#ifdef FIX_BREAK
+#else
+                                        previous_whitespace_char = false;
+#endif
+
+                                        if (!within_tag && page_refs_on && to_html && previous_digit_char) {
+                                            // end page link
+                                            line.append("\">");
+                                            line.append(page_ref);
+                                            line.append("</a>");
+                                            page_ref.clear();
+                                        }
+
+                                        previous_digit_char = false;
+
+                                  } else if (c2 == 0x84 && c3 == 0x96) {
+                                      page_refs_on = !page_refs_on;
+
+                                  } else {
+                                        line.append((char *)&c, 1);
+                                        line.append((char *)&c2, 1);
+                                        line.append((char *)&c3, 1);
+
+                                        if (!within_tag) {
+                                            if (grid.grid_type == Grid::TEXT) {
+                                                non_tag_line_length_text++;
+
+                                            } else if (grid.grid_type == Grid::FOOTNOTE) {
+                                                non_tag_line_length_footnote++;
+                                            }
+                                        }
+                                    }
 
                                 } else {
-                                    if (!to_html) oss_text << endl;
+                                    cout << "bad UTF-8 on page index " << n << endl;
                                 }
-
-                                if (!to_html) oss_text << endl;
-                                non_tag_line_length_text = 0;
                                 break;
 
                             case '|':
-                                oss_text << line;
-                                line.clear();
+                                line.append("\n");
                                 skipping_spaces = true;
+                                is_whitespace_char = true;
 
-                                oss_text << endl;
-                                non_tag_line_length_text = 0;
-                                break;
-
-                            case 0xA7:      // Latin-1 section sign §
-                                if (oss_fn.str().length() > 0) {
-                                    oss_text << line;
-                                    line.clear();
-                                    skipping_spaces = true;
-
-                                    oss_text << endl << oss_fn.str() << endl;
-                                    non_tag_line_length_text = 0;
-                                    oss_fn.str("");
-                                }
-                                break;
-
-                            case 0xA6:      // latin-1 broken bar ¦ placeholder for em dash
-                                // line.append("--");
-                                line.append(to_html ? "&mdash;" : "—");
                                 if (grid.grid_type == Grid::TEXT) {
-                                    if (!within_tag) non_tag_line_length_text++;
+                                    non_tag_line_length_text = 0;
 
                                 } else if (grid.grid_type == Grid::FOOTNOTE) {
-                                    if (!within_tag) non_tag_line_length_footnote++;
+                                    non_tag_line_length_footnote = 0;
                                 }
-
-                                previous_whitespace_char = false;
+//                                if (grid.grid_type == Grid::TEXT) {
+//                                    oss_text << line;
+//                                    line.clear();
+//                                    skipping_spaces = true;
+//
+//                                    oss_text << endl;
+//
+//                                    non_tag_line_length_text = 0;
+//
+//                                } else if (grid.grid_type == Grid::FOOTNOTE) {
+//                                    oss_fn << line;
+//                                    line.clear();
+//                                    skipping_spaces = true;
+//
+//                                    oss_fn << endl;
+//
+//                                    non_tag_line_length_footnote = 0;
+//                                }
                                 break;
 
                             case '"':
@@ -1162,7 +1286,8 @@ void Fl_Main_Window::export_text(bool to_html)
                                         line.append(previous_whitespace_char ? "&ldquo;" : "&rdquo;");
 
                                     } else {
-                                        line.append(previous_whitespace_char ? "“" : "”");
+                                        line.append(previous_whitespace_char ? u8"“" : u8"”");
+//                                        line.append(previous_whitespace_char ? "\xE2\x80\x9C" : "\xE2\x80\x9D");
                                     }
 
                                     if (grid.grid_type == Grid::TEXT) {
@@ -1173,8 +1298,21 @@ void Fl_Main_Window::export_text(bool to_html)
                                     }
                                 }
 
+#ifdef FIX_BREAK
+#else
                                 previous_whitespace_char = false;
-                                break;
+#endif
+
+                                if (!within_tag && page_refs_on && to_html && previous_digit_char) {
+                                    // end page link
+                                    line.append("\">");
+                                    line.append(page_ref);
+                                    line.append("</a>");
+                                    page_ref.clear();
+                                }
+
+                                previous_digit_char = false;
+                              break;
 
                             case '\'':
                                 if (within_tag) {
@@ -1196,34 +1334,142 @@ void Fl_Main_Window::export_text(bool to_html)
                                     }
                                 }
 
+#ifdef FIX_BREAK
+#else
                                 previous_whitespace_char = false;
-                                break;
+#endif
+
+                                if (!within_tag && page_refs_on && to_html && previous_digit_char) {
+                                    // end page link
+                                    line.append("\">");
+                                    line.append(page_ref);
+                                    line.append("</a>");
+                                    page_ref.clear();
+                                }
+
+                                previous_digit_char = false;
+                               break;
 
                             default:
-                                if ((c & 0x80) != 0) {
-                                    cout << "export_text unknown high ascii " << hex << setw(2) << uppercase << setfill('0') <<
-                                    (unsigned int)(unsigned char)c << endl;
+                                int char_length = 0;
+                                if ((c & 0x80) == 0) {
+                                    char_length = 1;
+
+                                } else if ((c & 0xE0) == 0xC0) {
+                                    char_length = 2;
+
+                                } else if ((c & 0xF0) == 0xE0) {
+                                    char_length = 3;
+
+                                } else if ((c & 0xF8) == 0xF0) {
+                                    char_length = 4;
                                 }
 
-                                line.append((char *)&c, 1);
-                                if (c == '<') within_tag = true;
-                                if (!within_tag) {
-                                    if (grid.grid_type == Grid::TEXT) {
-                                        non_tag_line_length_text++;
+                                bool good_utf8 = char_length > 0;
+                                if (char_length == 1) {
+                                    bool next_digit_char = c >= '0' && c <= '9';
+                                    if (!within_tag && page_refs_on && to_html) {
+                                        if (next_digit_char) page_ref.append((char *)&c, 1);
 
-                                    } else if (grid.grid_type == Grid::FOOTNOTE) {
-                                        non_tag_line_length_footnote++;
+                                        if (!previous_digit_char && next_digit_char) {
+                                            // begin page link
+                                            line.append("<a href=\"#p");
+
+                                        } else if (previous_digit_char && !next_digit_char) {
+                                            // end page link
+                                            line.append("\">");
+                                            line.append(page_ref);
+                                            line.append("</a>");
+                                            page_ref.clear();
+                                        }
                                     }
+
+                                    line.append((char *)&c, 1);
+
+                                    previous_digit_char = next_digit_char;
+
+                                    if (c == '<') within_tag = true;
+                                    if (!within_tag) {
+                                        if (grid.grid_type == Grid::TEXT) {
+                                            non_tag_line_length_text++;
+
+                                        } else if (grid.grid_type == Grid::FOOTNOTE) {
+                                            non_tag_line_length_footnote++;
+                                        }
+                                    }
+
+#ifdef FIX_BREAK
+#else
+                                    if (!within_tag) previous_whitespace_char = c == ' ';
+#endif
+
+                                    if (c == '>') ending_tag = true;
+
+                                } else if (k + char_length - 1 < next_page_text.length() && grid_index < next_grids.size()) {
+                                    for (int j = 1; j < char_length && good_utf8; j++) {
+                                        if ((next_page_text[k + j] & 0xC0) != 0x80) good_utf8 = false;
+                                    }
+
+                                } else {
+                                    good_utf8 = false;
                                 }
-                                
-                                if (!within_tag) previous_whitespace_char = c == ' ';
-                                if (c == '>') within_tag = false;
+
+                                if (!good_utf8) {
+                                    cout << "bad UTF-8 on page index " << n << endl;
+                                    line.append("\xFF\xFD");    // unknown char
+
+                                } else if (char_length > 1) {
+                                    if (!within_tag && page_refs_on && to_html && previous_digit_char) {
+                                        // end page link
+                                        line.append("\">");
+                                        line.append(page_ref);
+                                        line.append("</a>");
+                                        page_ref.clear();
+                                    }
+
+                                    if (!within_tag) previous_digit_char = false;
+
+                                    line.append((char *)&next_page_text[k], char_length);
+                                    k += char_length - 1;
+
+                                    if (!within_tag) {
+                                        if (grid.grid_type == Grid::TEXT) {
+                                            non_tag_line_length_text++;
+
+                                        } else if (grid.grid_type == Grid::FOOTNOTE) {
+                                            non_tag_line_length_footnote++;
+                                        }
+                                    }
+
+#ifdef FIX_BREAK
+#else
+                                    if (!within_tag) previous_whitespace_char = false;
+#endif
+
+}
+
                                 break;
                         }
                     }
+
+#ifdef FIX_BREAK
+                    if (!within_tag) previous_whitespace_char = is_whitespace_char;
+#endif
+                    if (ending_tag) within_tag = false;
                 }
             }
         }
+
+        if (dump_footnotes && oss_fn.str().length() > 0) {
+//            oss_text << line;
+//            line.clear();
+//            skipping_spaces = true;
+
+            oss_text << endl << oss_fn.str() << endl;
+            non_tag_line_length_text = 0;
+            oss_fn.str("");
+        }
+
     }
 
     if (to_html) {
@@ -1434,6 +1680,11 @@ void insert_line_break_button_cb(Fl_Widget* widget, void *userp)
     ((Fl_Main_Window *)userp)->insert_line_break();
 }
 
+void insert_page_ref_button_cb(Fl_Widget* widget, void *userp)
+{
+    ((Fl_Main_Window *)userp)->insert_page_ref_toggle();
+}
+
 void save_page_button_cb(Fl_Widget* widget, void *userp)
 {
     ((Fl_Main_Window *)userp)->save_page();
@@ -1491,3 +1742,41 @@ void set_odd_default_grids_cb(Fl_Widget* widget, void *userp)
     ((Fl_Main_Window *)userp)->set_odd_default_grids();
 }
 
+void reformat_cleaned()
+{
+    int last_page_index = 0;
+
+    cout << "reformatting cleaned pages" << endl;
+
+    for (int page_index = 0; page_index <= 447; page_index++) {
+        string path;
+        string text;
+
+        if (cleaned_text_path(page_index, path)) {
+            if (!fileToString(path, text)) {
+                cout << "error reading file " << path << endl;
+                exit(1);
+            }
+
+            stringstream oss;
+
+            for (size_t k = 0; k < text.length(); k++) {
+                char c = text[k];
+
+                switch ((unsigned char)c) {
+                    case 0xAC:      oss << "¬";     break;
+                    case 0xB6:      oss << "¶";     break;
+                    case 0xA7:      oss << "§";     break;
+                    case 0xA6:      oss << "—";     break;
+                    default:        oss << c;       break;
+                }
+            }
+
+            stringToFile(oss.str(), path);
+
+            last_page_index = page_index;
+        }
+    }
+
+    cout << "reformatted through page " << last_page_index << endl;
+}
